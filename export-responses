@@ -1,0 +1,239 @@
+#!/usr/bin/env python
+import argparse, simplejson, codecs, datetime, sys, xlsxwriter
+
+def main():
+
+    #parse command line arguments
+    args = parseArguments()
+
+    #open the schema file
+    fs = open(args.schema, "r")
+
+    #read and convert JSON data
+    schema = simplejson.load(fs)
+
+    fs.close()
+
+    study_id = schema['id']
+    schema_forms = schema['forms']
+    nforms = len(schema_forms)
+
+    print "Loaded schema for study " + study_id + " with " + str(nforms) + " forms"
+
+    #open the responses file
+    fr = open(args.responses, "r")
+
+    #read and convert JSON data
+    responses = simplejson.load(fr)
+
+    fr.close()
+
+    nresponses = len(responses)
+
+    print "Found " + str(nresponses) + " responses"
+
+    #group by session id
+    by_session = groupBySessionID(responses)
+    nsessions = len(by_session.keys())
+
+    print "Found " + str(nsessions) + " sessions"
+
+    headers = getHeaders(schema_forms)
+
+    #all responses go into this variable
+    all_sessions = []
+
+    #process all sessions
+    for session_id in by_session.keys():
+        form_list = by_session[session_id]
+        nsforms = len(form_list)
+        print session_id, ": ", nsforms
+
+        by_form = groupByFormID(form_list)
+
+        timestamp = form_list[0]['timestamp']['server_session']
+
+        form_time = datetime.datetime.fromtimestamp(int(timestamp)/1000).strftime('%Y-%m-%d %H:%M:%S')
+
+        session_responses = {
+                                "session": session_id,
+                                "timestamp": form_time,
+                                "forms": []
+                            }
+
+        #look at all the forms
+        for schema_form in schema_forms:
+            schema_form_id = schema_form['id']
+            row = {
+                    "form": schema_form_id,
+                    "responses": []
+                  }
+
+            nfields = len(schema_form['fields'])
+            try:
+                response_forms = by_form[schema_form_id]
+            except:
+                print "ERROR: Form %s is missing from session %s." % (schema_form_id, session_id)
+                #if the form is missing, append empty cells for all the fields that were supposed to be there
+                row["responses"].extend([""] * nfields)
+                continue
+
+            nresponse_forms = len(response_forms)
+
+            response_form = response_forms[0]
+
+            if (nresponse_forms > 1):
+                print "WARNING: Multiple responses (%d) received for session %s, form %s" % (nresponse_forms, session_id, schema_form_id)
+            
+            #iterate over all the fields
+            for field in schema_form['fields']:
+                field_id = field['id']
+
+                #some json value are output as integers
+                if isinstance(field_id, int):
+                    field_id = str(field_id)
+                
+                if len(field_id) == 0:
+                    print "WARNING: Found a field that has no ID property for session %s, form %s" % (session_id, schema_form_id)
+                    row["responses"].append("".encode('utf-8'))
+                    continue
+                
+                field_value = ""
+
+                try:
+                    field_value = response_form[field_id]
+                except:
+                    field_value = 9999 #missing fields are 9999
+                    
+                if isinstance(field_value, dict):
+                    if field_value['skipped']:
+                        field_value = 9999 #skipped fields are 9999
+                    else:
+                        field_value = field_value['value']
+                elif isinstance(field_value, list):
+                    field_value = args.separator.join(field_value)
+    
+                field_value = unicode(field_value)
+                #append cell to row
+                row["responses"].append(field_value)
+        
+            session_responses["forms"].append(row)
+        all_sessions.append(session_responses)
+
+    if args.excel == True:
+        print "Writing Excel file"
+        writeXLSX(args.output, all_sessions, headers)
+    print "Output saved to " + args.output
+
+def writeXLSX(output, all_sessions, headers):
+    workbook = xlsxwriter.Workbook(output)
+    worksheets = {}
+    rows = {}
+
+    for session in all_sessions:
+        session_id = session["session"]
+        session_time = session["timestamp"]
+
+        #loop over all forms in the session
+        #these should be in order
+        for form in session["forms"]:
+            
+            form_id = form["form"]
+
+            #get existing sheet or create a new sheet
+            if form_id in worksheets:
+                sheet = worksheets[form_id]
+                row = rows[form_id]
+            else:
+                sheet = workbook.add_worksheet(form_id)
+                row = 0
+                worksheets[form_id] = sheet
+
+            #write headers first
+            if row == 0:
+                print headers[form_id]
+                sheet.write_row(row, 0, headers[form_id])
+                row = row + 1
+
+            col = 0
+            #write a new row in the sheet
+            for response in form["responses"]:
+                sheet.write(row, col, response)
+                col = col + 1
+
+            rows[form_id] = row + 1
+
+def writeCSV(output, table):
+    of = codecs.open(output, "wb", encoding="utf-8")
+
+    for row in table:
+        ncells = len(row)
+        i = 0
+        for cell in row:
+            if isinstance(cell, int):
+                of.write(str(cell))
+            else:
+                ucell = cell.replace(u'"', u'\\"')
+                of.write(u'"' + ucell + u'"')
+            i = i + 1
+            if i < ncells:
+                of.write(u",")
+        of.write("\n")
+    of.close()
+
+def getHeaders(forms):
+    headers = {}
+
+    #loop over each form
+    for form in forms:
+        form_id = form['id']
+        form_headers = []
+        fields = form['fields']
+
+        #loop over each field
+        for field in fields:
+            field = unicode(field['id'])
+            form_headers.append(field)
+
+        headers[form_id] = form_headers
+
+    return headers
+
+def groupByFormID(formlist):
+    result = {}
+
+    for form in formlist:
+        form_id = form['id']['form']
+
+        if not form_id in result:
+            result[form_id] = []
+
+        result[form_id].append(form['data'])
+        
+    return result
+
+def groupBySessionID(resplist):
+    result = {}
+
+    for response in resplist:
+        session_id = response["id"]['session']
+        
+        if not session_id in result:
+            result[session_id] = []
+
+        result[session_id].append(response)
+
+    return result
+
+#parse arguments
+def parseArguments():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-x", "--excel", action="store_true", default=False, help="Use MS Excel 2013 format (.xlsx) instead of CSV (.csv)")
+    parser.add_argument("-o", "--output", metavar="FILE", help="Output file", default="output.csv")
+    parser.add_argument("-r", "--responses", metavar="FILE", help="File containing responses")
+    parser.add_argument("-s", "--schema", metavar="FILE", help="Study schema file")
+    parser.add_argument("--separator", metavar="CHAR", help="Multi-value separator", default="|")
+    return parser.parse_args()
+
+if __name__ == "__main__":
+    main()
