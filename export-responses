@@ -1,239 +1,250 @@
 #!/usr/bin/env python
-import argparse, simplejson, codecs, datetime, sys, xlsxwriter
+import argparse, simplejson, codecs, datetime, sys, xlsxwriter, copy, os
+
+supported_formats = [ ".xlsx" ]
+output_format = None
 
 def main():
-
-    #parse command line arguments
+    #parse arguments
     args = parseArguments()
 
-    #open the schema file
-    fs = open(args.schema, "r")
+    try:
+        output_format = checkArguments(args)
+    except Exception,e:
+        print "ERROR: %s\n" % e
+        sys.exit(1)
 
     #read and convert JSON data
+    fs = open(args.schema, "r")
     schema = simplejson.load(fs)
-
     fs.close()
 
+    #store information about the study
     study_id = schema['id']
-    schema_forms = schema['forms']
-    nforms = len(schema_forms)
-
+    nforms = len(schema['forms'])
     print "Loaded schema for study " + study_id + " with " + str(nforms) + " forms"
 
-    #open the responses file
-    fr = open(args.responses, "r")
-
     #read and convert JSON data
+    fr = open(args.responses, "r")
     responses = simplejson.load(fr)
-
     fr.close()
 
+    #store information about responses
     nresponses = len(responses)
-
     print "Found " + str(nresponses) + " responses"
 
-    #group by session id
-    by_session = groupBySessionID(responses)
-    nsessions = len(by_session.keys())
+    #    {
+    #        "<session_id>": {
+    #            id: value,
+    #            title: value,
+    #            forms: [
+    #                {
+    #                    id: value,
+    #                    fields: [
+    #                        {
+    #                            id: value,
+    #                            type: value,
+    #                            value: value
+    #                        }
+    #                    ]
+    #            ]
+    #        }
+    #    }
+    schemata = {}
 
-    print "Found " + str(nsessions) + " sessions"
+    #iterate over all responses
+    for response in responses:
+        try:
+            add_values(schemata, schema, response, args.skipped, args.missing, args.duplicates)
+        except Exception,e:
+            print e
 
-    headers = getHeaders(schema_forms)
+    table = table_by_form(schemata, args.missing)
+    remove_duplicates(table, args.duplicates, args.separator)
+    form_labels = get_form_labels(schema)
 
-    #all responses go into this variable
-    all_sessions = []
+    if output_format == ".xlsx":
+        #write output as Excel file
+        writeXLSX(args.output, table, form_labels)
+    else:
+        print "ERROR: Unknown output format:", output_format
 
-    #process all sessions
-    for session_id in by_session.keys():
-        form_list = by_session[session_id]
-        nsforms = len(form_list)
-        print session_id, ": ", nsforms
+    print "Wrote", args.output
 
-        by_form = groupByFormID(form_list)
+#Decides what to do with duplicate answers based on the user chosen strategy
+def remove_duplicates(table, duplicate_strategy, separator):
 
-        timestamp = form_list[0]['timestamp']['server_session']
-
-        form_time = datetime.datetime.fromtimestamp(int(timestamp)/1000).strftime('%Y-%m-%d %H:%M:%S')
-
-        session_responses = {
-                                "session": session_id,
-                                "timestamp": form_time,
-                                "forms": []
-                            }
-
-        #look at all the forms
-        for schema_form in schema_forms:
-            schema_form_id = schema_form['id']
-            row = {
-                    "form": schema_form_id,
-                    "responses": []
-                  }
-
-            nfields = len(schema_form['fields'])
-            try:
-                response_forms = by_form[schema_form_id]
-            except:
-                print "ERROR: Form %s is missing from session %s." % (schema_form_id, session_id)
-                #if the form is missing, append empty cells for all the fields that were supposed to be there
-                row["responses"].extend([""] * nfields)
-                continue
-
-            nresponse_forms = len(response_forms)
-
-            response_form = response_forms[0]
-
-            if (nresponse_forms > 1):
-                print "WARNING: Multiple responses (%d) received for session %s, form %s" % (nresponse_forms, session_id, schema_form_id)
-            
-            #iterate over all the fields
-            for field in schema_form['fields']:
-                field_id = field['id']
-
-                #some json value are output as integers
-                if isinstance(field_id, int):
-                    field_id = str(field_id)
-                
-                if len(field_id) == 0:
-                    print "WARNING: Found a field that has no ID property for session %s, form %s" % (session_id, schema_form_id)
-                    row["responses"].append("".encode('utf-8'))
+    for sheet in table:
+        for row in sheet:
+            for i in range(len(row)):
+                cell = row[i]
+                if type(cell) != list:
                     continue
-                
-                field_value = ""
 
-                try:
-                    field_value = response_form[field_id]
-                except:
-                    field_value = 9999 #missing fields are 9999
-                    
-                if isinstance(field_value, dict):
-                    if field_value['skipped']:
-                        field_value = 9999 #skipped fields are 9999
-                    else:
-                        field_value = field_value['value']
-                elif isinstance(field_value, list):
-                    field_value = args.separator.join(field_value)
-    
-                field_value = unicode(field_value)
-                #append cell to row
-                row["responses"].append(field_value)
-        
-            session_responses["forms"].append(row)
-        all_sessions.append(session_responses)
+                if duplicate_strategy == "first":
+                    row[i] = cell[0]
+                elif duplicate_strategy == "last":
+                    row[i] = cell[-1]
+                elif duplicate_strategy == "merge":
+                    row[i] = separator.join(cell)
+                else:
+                    row[i] = cell[0]
 
-    if args.excel == True:
-        print "Writing Excel file"
-        writeXLSX(args.output, all_sessions, headers)
-    print "Output saved to " + args.output
+#returns a list of field labels for 
+def get_form_labels(schema):
+    labels = []
 
-def writeXLSX(output, all_sessions, headers):
-    workbook = xlsxwriter.Workbook(output)
-    worksheets = {}
-    rows = {}
+    for form in schema["forms"]:
+        labels.append(form["id"])
 
-    for session in all_sessions:
-        session_id = session["session"]
-        session_time = session["timestamp"]
+    return labels
 
-        #loop over all forms in the session
-        #these should be in order
-        for form in session["forms"]:
-            
-            form_id = form["form"]
+#convert the schema to tabular format, with each table entry representing a sheet
+#with all subjects who submitted responses for those forms
+def table_by_form(schemata, missing):
 
-            #get existing sheet or create a new sheet
-            if form_id in worksheets:
-                sheet = worksheets[form_id]
-                row = rows[form_id]
-            else:
-                sheet = workbook.add_worksheet(form_id)
-                row = 0
-                worksheets[form_id] = sheet
-
-            #write headers first
-            if row == 0:
-                print headers[form_id]
-                sheet.write_row(row, 0, headers[form_id])
-                row = row + 1
-
-            col = 0
-            #write a new row in the sheet
-            for response in form["responses"]:
-                sheet.write(row, col, response)
-                col = col + 1
-
-            rows[form_id] = row + 1
-
-def writeCSV(output, table):
-    of = codecs.open(output, "wb", encoding="utf-8")
-
-    for row in table:
-        ncells = len(row)
-        i = 0
-        for cell in row:
-            if isinstance(cell, int):
-                of.write(str(cell))
-            else:
-                ucell = cell.replace(u'"', u'\\"')
-                of.write(u'"' + ucell + u'"')
-            i = i + 1
-            if i < ncells:
-                of.write(u",")
-        of.write("\n")
-    of.close()
-
-def getHeaders(forms):
+    #list of sheets
+    table = []
+    #headers
     headers = {}
 
-    #loop over each form
-    for form in forms:
-        form_id = form['id']
-        form_headers = []
-        fields = form['fields']
+    
+    for session_id, schema in schemata.items():
+        forms = schema["forms"]
+        nforms = len(forms)
 
-        #loop over each field
-        for field in fields:
-            field = unicode(field['id'])
-            form_headers.append(field)
+        if len(table) == 0:
+            #allocate a list containing nforms number of lists
+            for i in range(nforms):
+                table.append([])
 
-        headers[form_id] = form_headers
+        for i in range(nforms):
+            form = forms[i]
+            form_id = form["id"]
 
-    return headers
+            sheet = table[i]
+            nrows = len(sheet)
 
-def groupByFormID(formlist):
-    result = {}
+            #build the headers, if necessary
+            if nrows == 0:
+                row = ["session_id"]
+                #loop over all fields and use their 'id' as column headers
+                for field in form["fields"]:
+                    row.append(field["id"])
 
-    for form in formlist:
-        form_id = form['id']['form']
+                sheet.append(row)
 
-        if not form_id in result:
-            result[form_id] = []
+            #build the row by looping over all fields
+            row = [session_id]
 
-        result[form_id].append(form['data'])
-        
-    return result
+            for field in form["fields"]:
+                if "value" not in field:
+                    row.append(missing)
+                else:
+                    row.append(field["value"])
 
-def groupBySessionID(resplist):
-    result = {}
+            sheet.append(row)
+    return table
 
-    for response in resplist:
-        session_id = response["id"]['session']
-        
-        if not session_id in result:
-            result[session_id] = []
+def writeXLSX(filename, table, sheet_labels):
 
-        result[session_id].append(response)
+    workbook = xlsxwriter.Workbook(filename)
 
-    return result
+    nsheets = len(table)
+
+    for i in range(nsheets):
+        sheet = table[i]
+        sheet_label = sheet_labels[i]
+        worksheet = workbook.add_worksheet(sheet_label)
+
+        nrows = len(sheet)
+
+        for row_index in range(nrows):
+            worksheet.write_row(row_index, 0, sheet[row_index])
+
+def add_values(schemata, schema, response, skipped, missing, duplicate_strategy):
+    #extract info about the current response
+    session_id = response["id"]["session"]
+    form_id = response["id"]["form"]
+
+    study_id = schema["id"]
+
+    if session_id not in schemata:
+        schemata[session_id] = copy.deepcopy(schema)
+
+    session_schema = schemata[session_id]
+    
+    #search the schema for the form this response contains values for
+    schema_form = find_schema_form(session_schema, form_id)
+
+    if schema_form == None:
+        raise Exception("%s: Received response for form '%s', but study %s contains no such form." % (session_id, form_id, study_id))
+
+    try:
+        populate_fields(schema_form, response, skipped, missing)
+    except Exception,e:
+        raise Exception("study %s, session %s, form %s: %s" % (study_id, session_id, form_id, str(e)))
+
+#transfer values from response.data to schema.fields
+def populate_fields(schema, response, skipped, missing):
+
+    data = response["data"]
+    populated = ("populated" in schema)
+    schema["populated"] = True
+
+
+    for field in schema["fields"]:
+        field_id = field["id"]
+
+        if field_id not in data:
+            value = missing
+        else:
+            value = data[field_id]
+
+        if type(value) == dict:
+            if value["skipped"] == True:
+                value = skipped
+            else:
+                value = value["value"]
+
+        #if already populated, simply convert the value to a list, and append responses to that list
+        if populated:
+            if type(field["value"]) != list:
+                field["value"] = [field["value"]]
+            field["value"].append(value)
+        else:
+            field["value"] = value
+
+
+#search the schema for a form object with the given id
+def find_schema_form(schema, form_id):
+    for form in schema["forms"]:
+        if form["id"] == form_id:
+            return form
+
+    return None
 
 #parse arguments
 def parseArguments():
     parser = argparse.ArgumentParser()
-    parser.add_argument("-x", "--excel", action="store_true", default=False, help="Use MS Excel 2013 format (.xlsx) instead of CSV (.csv)")
-    parser.add_argument("-o", "--output", metavar="FILE", help="Output file", default="output.csv")
-    parser.add_argument("-r", "--responses", metavar="FILE", help="File containing responses")
-    parser.add_argument("-s", "--schema", metavar="FILE", help="Study schema file")
+
+    parser.add_argument("-o", "--output", required=True, metavar="FILE", help="Output file")
+    parser.add_argument("-r", "--responses", required=True, metavar="FILE", help="File containing responses")
+    parser.add_argument("-s", "--schema", required=True, metavar="FILE", help="Study schema file")
+    parser.add_argument("-k", "--skipped", metavar="VALUE", help="Value for skipped fields", default="9999")
+    parser.add_argument("-m", "--missing", metavar="VALUE", help="Value for missing fields", default="")
+    parser.add_argument("-d", "--duplicates", metavar="VALUE", help="How to handle multiple form submissions (first, last, merge, skip)", default="first")
     parser.add_argument("--separator", metavar="CHAR", help="Multi-value separator", default="|")
+
     return parser.parse_args()
+
+def checkArguments(args):
+    basename, ext = os.path.splitext(args.output)
+
+    if ext not in supported_formats:
+        raise Exception("I don't know how to output " + output_format + " files. Check the output filename. By the way, I only understand: " + ", ".join(supported_formats))
+
+    return ext
 
 if __name__ == "__main__":
     main()
