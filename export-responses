@@ -55,12 +55,12 @@ def main():
     #iterate over all responses
     for response in responses:
         try:
-            add_values(schemata, schema, response, args.skipped, args.missing, args.duplicates)
+            add_values(schemata, schema, response, args.skipped, args.missing, args.mseparator)
         except Exception,e:
             print e
 
     table = table_by_form(schemata, args.missing)
-    remove_duplicates(table, args.duplicates, args.separator)
+    remove_duplicates(table, args.duplicates, args.dseparator)
     form_labels = get_form_labels(schema)
 
     if output_format == ".xlsx":
@@ -162,7 +162,7 @@ def writeXLSX(filename, table, sheet_labels):
         for row_index in range(nrows):
             worksheet.write_row(row_index, 0, sheet[row_index])
 
-def add_values(schemata, schema, response, skipped, missing, duplicate_strategy):
+def add_values(schemata, schema, response, skipped, missing, separator):
     #extract info about the current response
     session_id = response["id"]["session"]
     form_id = response["id"]["form"]
@@ -181,17 +181,16 @@ def add_values(schemata, schema, response, skipped, missing, duplicate_strategy)
         raise Exception("%s: Received response for form '%s', but study %s contains no such form." % (session_id, form_id, study_id))
 
     try:
-        populate_fields(schema_form, response, skipped, missing)
+        populate_fields(schema_form, response, skipped, missing, separator)
     except Exception,e:
         raise Exception("study %s, session %s, form %s: %s" % (study_id, session_id, form_id, str(e)))
 
 #transfer values from response.data to schema.fields
-def populate_fields(schema, response, skipped, missing):
+def populate_fields(schema, response, skipped, missing, separator):
 
     data = response["data"]
     populated = ("populated" in schema)
     schema["populated"] = True
-
 
     for field in schema["fields"]:
         field_id = field["id"]
@@ -206,6 +205,9 @@ def populate_fields(schema, response, skipped, missing):
                 value = skipped
             else:
                 value = value["value"]
+
+        elif type(value) == list:
+            value = separator.join(value)
 
         #if already populated, simply convert the value to a list, and append responses to that list
         if populated:
@@ -234,7 +236,8 @@ def parseArguments():
     parser.add_argument("-k", "--skipped", metavar="VALUE", help="Value for skipped fields", default="9999")
     parser.add_argument("-m", "--missing", metavar="VALUE", help="Value for missing fields", default="")
     parser.add_argument("-d", "--duplicates", metavar="VALUE", help="How to handle multiple form submissions (first, last, merge, skip)", default="first")
-    parser.add_argument("--separator", metavar="CHAR", help="Multi-value separator", default="|")
+    parser.add_argument("--mseparator", metavar="CHAR", help="Multi-value separator", default=",")
+    parser.add_argument("--dseparator", metavar="CHAR", help="Duplicate response separator", default="|")
 
     return parser.parse_args()
 
