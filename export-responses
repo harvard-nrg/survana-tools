@@ -207,7 +207,20 @@ def populate_fields(schema, response, skipped, missing, separator):
                 value = value["value"]
 
         elif type(value) == list:
-            value = separator.join(value)
+            curated = []
+            #we have to iterate over this list because some items might have been skipped
+            #and string.join() expects a list of strings, without any dict's
+            for response in value:
+                #skipped responses will show up as 'dict's
+                if type(response) == dict:
+                    if response["skipped"] == True:
+                        curated.append(skipped)
+                    else:
+                        curated.append(response["value"])
+                else:
+                    curated.append(str(response))
+
+            value = separator.join(curated)
 
         #if already populated, simply convert the value to a list, and append responses to that list
         if populated:
