@@ -1,0 +1,194 @@
+{  
+   "code":"Pub_M",
+   "created_on":1358189651245,
+   "data":[  
+      {  
+         "s-type":"question",
+         "data-theme":"a",
+         "html":"DIRECTIONS: <br><br> For each question, please choose the option that best describes what is happening to you. Please only choose one answer for each question.<br>"
+      },
+      {  
+         "s-type":"question",
+         "html":"1. Would you say that your growth in height:"
+      },
+      {  
+         "data-theme":"a",
+         "s-validate":{  
+            "required":true,
+            "skip":true
+         },
+         "s-id":"HEIGHT",
+         "s-items":{  
+            "A． Has not yet begun to spurt ('spurt' means more growth than usual)":1,
+            "B． Has barely started":2,
+            "C． Is definitely underway":3,
+            "D． Seems completed":4
+         },
+         "s-direction":"vertical",
+         "s-group":"radio",
+         "s-block":true
+      },
+      {  
+         "s-type":"question",
+         "html":"2. And how about the growth of body hair ('body hair' means underarm and pubic hair)? Would you say that your body hair has:"
+      },
+      {  
+         "data-theme":"a",
+         "s-validate":{  
+            "required":true,
+            "skip":true
+         },
+         "s-id":"BODY_HAIR",
+         "s-items":{  
+            "A． Not yet started growing":1,
+            "B． Has barely started growing":2,
+            "C． Is definitely underway":3,
+            "D． Seems completed":4
+         },
+         "s-direction":"vertical",
+         "s-group":"radio",
+         "s-block":true
+      },
+      {  
+         "s-type":"question",
+         "html":"3. Have you noticed any skin changes, especially pimples?"
+      },
+      {  
+         "data-theme":"a",
+         "s-validate":{  
+            "required":true,
+            "skip":true
+         },
+         "s-id":"SKIN",
+         "s-items":{  
+            "A． Not yet started showing changes":1,
+            "B． Have barely started showing changes":2,
+            "C． Skin changes are definitely underway":3,
+            "D． Skin changes seem completed":4
+         },
+         "s-direction":"vertical",
+         "s-group":"radio",
+         "s-block":true
+      },
+      {  
+         "s-type":"question",
+         "html":"4. Have you noticed a deepening of your voice?"
+      },
+      {  
+         "data-theme":"a",
+         "s-validate":{  
+            "required":true,
+            "skip":true
+         },
+         "s-id":"VOICE",
+         "s-items":{  
+            "A． Not yet started changing":1,
+            "B． Has barely started changing":2,
+            "C． Voice change is definitely underway":3,
+            "D． Voice change seems completed":4
+         },
+         "s-direction":"vertical",
+         "s-group":"radio",
+         "s-block":true
+      },
+      {  
+         "s-type":"question",
+         "html":"5. Have you begun to grow hair on your face?"
+      },
+      {  
+         "data-theme":"a",
+         "s-validate":{  
+            "required":true,
+            "skip":true
+         },
+         "s-id":"FACIAL_HAIR",
+         "s-items":{  
+            "A． Not yet started growing hair":1,
+            "B． Has barely started growing hair":2,
+            "C． Facial hair growth is definitely underway":3,
+            "D． Facial hair growth seems completed":4
+         },
+         "s-direction":"vertical",
+         "s-group":"radio",
+         "s-block":true
+      },
+      {  
+         "s-type":"question",
+         "html":"6. Do you think your development is any earlier or later than most other boys your age?"
+      },
+      {  
+         "data-theme":"a",
+         "s-validate":{  
+            "required":true,
+            "skip":true
+         },
+         "s-id":"OTHERS",
+         "s-items":{  
+            "A． Much earlier":1,
+            "B． Somewhat earlier":2,
+            "C． About the same":3,
+            "D． Somewhat later":4,
+            "E． Much later":5
+         },
+         "s-direction":"vertical",
+         "s-group":"radio",
+         "s-block":true
+      },
+      {  
+         "s-type":"question",
+         "html":"8. How tall are you?"
+      },
+      {  
+         "s-type":"number",
+         "placeholder":"Feet",
+         "maxlength":1,
+         "data-theme":"a",
+         "s-validate":{  
+            "required":true,
+            "skip":true
+         },
+         "s-id":"HEIGHT_SPEC_FEET",
+         "s-label":"I am"
+      },
+      {  
+         "s-type":"number",
+         "placeholder":"Inches",
+         "maxlength":2,
+         "data-theme":"a",
+         "s-validate":{  
+            "required":true,
+            "skip":true
+         },
+         "s-id":"HEIGHT_SPEC_INCHES",
+         "s-label":"and",
+         "s-border":false
+      },
+      {  
+         "s-type":"question",
+         "html":"9. How much do you weigh?"
+      },
+      {  
+         "s-type":"number",
+         "placeholder":"In pounds",
+         "maxlength":3,
+         "data-theme":"a",
+         "s-validate":{  
+            "required":true,
+            "skip":true
+         },
+         "s-width":20,
+         "s-item-width":15,
+         "s-id":"WEIGHT",
+         "s-label":"I weigh",
+         "s-border":false
+      }
+   ],
+   "display_title":true,
+   "form":"{}",
+   "gid":"hULSHr",
+   "group":"Puberty Scale - Female",
+   "id":"hULSHr",
+   "published":true,
+   "title":"ANDL Puberty Scale",
+   "version":"Male"
+}
