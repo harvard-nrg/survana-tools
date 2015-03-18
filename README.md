@@ -24,7 +24,7 @@ Usage:
 * `-o` - output file in Qualtrics TXT format
 * `-f` - overwrite output file if it exists
 * `-g` - output debug information
-* '--help' - output the help page
+* `--help` - output the help page
 
 To import the TXT file into Qualtrics, follow this guide: http://www.qualtrics.com/university/researchsuite/advanced-building/advanced-options-drop-down/import-and-export-surveys/
 
