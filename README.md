@@ -16,8 +16,8 @@ make
 Usage:
 
 * `-i` - input JSON file containing 1 form, as exported from the database
-* '-o' - output file in Qualtrics TXT format
-* '-f' - overwrite output file if it exists
+* `-o` - output file in Qualtrics TXT format
+* `-f` - overwrite output file if it exists
 
 export-responses
 ----------------
