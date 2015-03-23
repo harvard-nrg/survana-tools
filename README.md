@@ -15,14 +15,14 @@ Installation
 ```
 cd export-qualtrics
 make
-./bin/export-qualtrics -i file.json -o file.txt
+./bin/export-qualtrics -i dump.json -o results
 ```
 
 Usage:
 
-* `-i` - input JSON file containing 1 form, as exported from the database
-* `-o` - output file in Qualtrics TXT format
-* `-f` - overwrite output file if it exists
+* `-i` - input database dump
+* `-o` - output directory
+* `-f` - comma-separated list of form IDs
 * `-g` - output debug information
 * `--help` - output the help page
 
