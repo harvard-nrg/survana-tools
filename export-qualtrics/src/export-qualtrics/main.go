@@ -79,6 +79,7 @@ func main() {
 			if debug_mode {
 				log.Printf("%s:%d: Skipping form %s\n", input_file, input_line, form.Id)
 			}
+			continue
 		}
 
 		output_file := output_dir + "/" + form.Id + ".txt"
