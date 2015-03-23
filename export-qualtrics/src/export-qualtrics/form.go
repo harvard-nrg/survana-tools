@@ -51,9 +51,16 @@ func (form *Form) toQualtrics(out io.Writer, templates *template.Template) (err 
 			if i < num_fields-1 {
 				next_field = &form.Fields[i+1]
 				if next_field.SType == "question" {
+					qualtrics_type, err = getQualtricsType(field)
+					if err != nil {
+						return
+					}
 					qualtrics_field = &qualtricsField{
 						Question:         field,
 						QuestionTemplate: templates.Lookup("instruction"),
+						QualtricsType:    qualtrics_type,
+						Answer:           nil,
+						AnswerTemplate:   nil,
 					}
 				} else {
 					//if this field has no html text, but answer has s-label, skip this field
@@ -79,6 +86,8 @@ func (form *Form) toQualtrics(out io.Writer, templates *template.Template) (err 
 				qualtrics_field = &qualtricsField{
 					Question:         field,
 					QuestionTemplate: templates.Lookup("instruction"),
+					Answer:           nil,
+					AnswerTemplate:   nil,
 				}
 			}
 		} else {
@@ -111,7 +120,7 @@ func (form *Form) toQualtrics(out io.Writer, templates *template.Template) (err 
 		//output question
 		if qualtrics_field.Question != nil {
 			if qualtrics_field.QuestionTemplate == nil {
-				err = fmt.Errorf("Question template not found for field: %s", qualtrics_field.Question)
+				err = fmt.Errorf("Question template not found for field %d: %s", i+1, qualtrics_field.Question)
 				return
 			}
 			err = qualtrics_field.QuestionTemplate.Execute(out, qualtrics_field)
@@ -123,7 +132,7 @@ func (form *Form) toQualtrics(out io.Writer, templates *template.Template) (err 
 		//output answer
 		if qualtrics_field.Answer != nil {
 			if qualtrics_field.AnswerTemplate == nil {
-				err = fmt.Errorf("Answer template not found for field: %s", qualtrics_field.Answer)
+				err = fmt.Errorf("Answer template not found for field %d: %s", i+1, qualtrics_field.Answer)
 				return
 			}
 			err = qualtrics_field.AnswerTemplate.Execute(out, qualtrics_field)

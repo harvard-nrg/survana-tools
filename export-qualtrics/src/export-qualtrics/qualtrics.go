@@ -31,6 +31,8 @@ func getQualtricsType(field *Field) (result string, err error) {
 		return TE_SINGLELINE, nil
 	case "textbox":
 		return TE_MULTILINE, nil
+	case "question":
+		return DB, nil
 	}
 
 	switch field.SGroup {
