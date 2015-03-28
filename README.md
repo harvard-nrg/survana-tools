@@ -24,6 +24,7 @@ Usage:
 * `-o` - output directory
 * `-f` - comma-separated list of form IDs
 * `-g` - output debug information
+* `-v` - output more information
 * `--help` - output the help page
 
 To import the TXT file into Qualtrics, follow this guide: http://www.qualtrics.com/university/researchsuite/advanced-building/advanced-options-drop-down/import-and-export-surveys/
