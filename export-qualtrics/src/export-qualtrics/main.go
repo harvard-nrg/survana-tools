@@ -15,11 +15,13 @@ import (
 
 //arguments
 var (
-	input_file  string
-	output_dir  string
-	form_filter []string
-	debug_mode  bool
-	input_line  int = 0
+	input_file    string
+	output_dir    string
+	form_filter   []string
+	verbose       bool
+	debug_mode    bool
+	input_line    int = 0
+	matched_forms int = 0
 )
 
 var Templates template.Template
@@ -27,7 +29,9 @@ var Templates template.Template
 func main() {
 	var err error
 
-	fmt.Println("export-qualtrics v0.1 - convert Survana forms to Qualtrics TXT format")
+	if verbose {
+		fmt.Println("export-qualtrics v0.1 - convert Survana forms to Qualtrics TXT format")
+	}
 	parse_arguments()
 
 	defer func() {
@@ -48,12 +52,12 @@ func main() {
 
 	//decode the JSON forms
 	var (
-		form         Form
 		apply_filter bool = (len(form_filter) > 0)
 		out          *os.File
 	)
 
 	for {
+		var form Form
 		input_line++
 
 		//read one line from file
@@ -66,11 +70,15 @@ func main() {
 		}
 
 		//replace \uff0e with "." (hack. long story)
-		form_string = strings.Replace(form_string, "．", ".", -1)
+		form_string = strings.Replace(form_string, " undefined,", "", -1)
 
+		if verbose {
+			log.Printf("Reading form on line %d\n", input_line)
+		}
 		//decode one form
 		if err = json.Unmarshal([]byte(form_string), &form); err != nil {
 			log.Printf("%s:%d: Error while decoding form: %s\n", input_file, input_line, err)
+			fmt.Println(form_string)
 			continue
 		}
 
@@ -82,6 +90,12 @@ func main() {
 			continue
 		}
 
+		matched_forms++
+
+		if verbose {
+			log.Printf("Converting form %s\n", form.Id)
+		}
+
 		output_file := output_dir + "/" + form.Id + ".txt"
 
 		//decide on the output (either use stdout, or open a file)
@@ -89,15 +103,22 @@ func main() {
 			panic(err)
 		}
 
-		log.Printf("%s:%d: Converting form %s\n", input_file, input_line, form.Id)
-
 		//convert the form
 		if err = form.toQualtrics(out, &Templates); err != nil {
 			out.Close()
-			panic(err)
+			log.Printf("WARNING: skipping form %s because: %s", form.Id, err)
+			continue
 		}
 
 		out.Close()
+
+		if verbose {
+			log.Printf("Wrote output to %s\n", output_file)
+		}
+	}
+
+	if apply_filter {
+		log.Printf("Filter %s matched %d form(s).", form_filter, matched_forms)
 	}
 }
 
@@ -127,6 +148,7 @@ func parse_arguments() {
 	flag.StringVar(&output_dir, "o", "", "Output path")
 	flag.StringVar(&form_ids, "f", "", "List of form IDs to convert (comma separated)")
 	flag.BoolVar(&debug_mode, "g", false, "Debug mode (default: false)")
+	flag.BoolVar(&verbose, "v", false, "Verbose logging (default: false)")
 	flag.Parse()
 
 	if len(input_file) == 0 {
@@ -148,7 +170,10 @@ func parse_arguments() {
 		}
 	}
 
-	form_filter = strings.Split(form_ids, ",")
+	if len(form_ids) > 0 {
+		form_filter = strings.Split(form_ids, ",")
+	}
+	log.Printf("Items in filter: %d: '%s'\n", len(form_filter), form_filter)
 }
 
 func file_exists(filepath string) bool {

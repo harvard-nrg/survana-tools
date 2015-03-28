@@ -4,7 +4,7 @@ import (
 	"text/template"
 )
 
-var tpl_radio_group = `
+var tpl_select_group = `
 [[AdvancedChoices]]
 {{ range $index, $item := .Answer.SItems }}
 [[Choice:{{ $item.Value}}]]
@@ -12,5 +12,5 @@ var tpl_radio_group = `
 `
 
 func init() {
-	template.Must(Templates.New("radio_group").Parse(tpl_radio_group))
+	template.Must(Templates.New("select_group").Parse(tpl_select_group))
 }

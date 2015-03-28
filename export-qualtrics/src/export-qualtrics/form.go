@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -18,6 +19,36 @@ type Form struct {
 	DisplayTitle bool    `json:"display_title"`
 	Published    bool    `json:"published"`
 	Fields       []Field `json:"data"`
+}
+
+type anythingGoesForm map[string]interface{}
+
+func (form *Form) UnmarshalJSON(data []byte) error {
+	var decoded anythingGoesForm
+
+	err := json.Unmarshal(data, &decoded)
+	if err != nil {
+		return err
+	}
+
+	unmarshalJSONString(&form.Id, decoded["id"])
+	unmarshalJSONString(&form.Code, decoded["code"])
+	unmarshalJSONString(&form.Title, decoded["title"])
+	unmarshalJSONString(&form.Gid, decoded["gid"])
+	unmarshalJSONString(&form.GroupName, decoded["group"])
+	unmarshalJSONInt64(&form.CreatedOn, decoded["created_on"])
+	unmarshalJSONString(&form.Version, decoded["version"])
+	unmarshalJSONBool(&form.DisplayTitle, decoded["display_title"])
+	unmarshalJSONBool(&form.Published, decoded["published"])
+
+	fields, ok := decoded["data"]
+	if !ok {
+		return nil
+	}
+
+	unmarshalJSONFields(&form.Fields, fields)
+
+	return nil
 }
 
 func (form *Form) String() string {
@@ -148,10 +179,10 @@ func (form *Form) toQualtrics(out io.Writer, templates *template.Template) (err 
 }
 
 func (form *Form) getTemplateName(field *Field) string {
-	if len(field.SType) > 0 {
-		return field.SType
-	} else if len(field.SGroup) > 0 {
+	if len(field.SGroup) > 0 {
 		return field.SGroup + "_group"
+	} else if len(field.SType) > 0 {
+		return field.SType
 	}
 
 	log.Println("Failed to find template name for field: " + field.String())

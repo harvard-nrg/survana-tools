@@ -2,84 +2,66 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
-	"strconv"
+	"reflect"
 )
 
 type Field struct {
-	SId        string           `json:"s-id"`
-	SType      string           `json:"s-type"`
-	SItems     SItems           `json:"s-items"`
-	SDirection string           `json:"direction"`
-	SGroup     string           `json:"s-group"`
-	SLabel     string           `json:"s-label"`
-	Html       string           `json:"html"`
-	Theme      string           `json:"data-theme"`
+	SId        string           `json:"s-id,omitempty"`
+	SType      string           `json:"s-type,omitempty"`
+	SItems     []Field          `json:"s-items,omitempty"`
+	SDirection string           `json:"s-direction,omitempty"`
+	SGroup     string           `json:"s-group,omitempty"`
+	SLabel     string           `json:"s-label,omitempty"`
+	Html       string           `json:"html,omitempty"`
+	Theme      string           `json:"data-theme,omitempty"`
+	Value      string           `json:"value,omitempty"`
 	Validation *FieldValidation `json:"validate,omitempty"`
 }
 
+func (field *Field) UnmarshalInterface(v interface{}) {
+	if reflect.TypeOf(v).Kind() != reflect.Map {
+		panic(fmt.Errorf("Cannot unmarshal value into Field: %s", v))
+	}
+
+	field_map := v.(map[string]interface{})
+
+	unmarshalJSONString(&field.SId, field_map["s-id"])
+	unmarshalJSONString(&field.SType, field_map["s-type"])
+	unmarshalJSONFields(&field.SItems, field_map["s-items"])
+	unmarshalJSONString(&field.SDirection, field_map["s-direction"])
+	unmarshalJSONString(&field.SGroup, field_map["s-group"])
+	unmarshalJSONString(&field.SLabel, field_map["s-label"])
+	unmarshalJSONString(&field.Html, field_map["html"])
+	unmarshalJSONString(&field.Theme, field_map["data-theme"])
+	unmarshalJSONFieldValidation(&field.Validation, field_map["validate"])
+}
+
 func (field *Field) String() string {
-	return "\t[" + field.SType + " " + field.Html + "]"
-}
-
-type SItems struct {
-	Items []SItem
-}
-
-func (s *SItems) UnmarshalJSON(data []byte) (err error) {
-	if data[0] == '{' {
-		var items map[string]interface{}
-		err = json.Unmarshal(data, &items)
-		if err != nil {
-			return
-		}
-		s.readSItems(0, items)
-	} else {
-		var list_of_items []map[string]interface{}
-		err = json.Unmarshal(data, &list_of_items)
-		if err != nil {
-			return
-		}
-
-		for i, items := range list_of_items {
-			s.readSItems(i, items)
-		}
+	bytes, err := json.Marshal(field)
+	if err != nil {
+		return err.Error()
 	}
 
-	return
+	return string(bytes)
 }
 
-func (s *SItems) readSItems(id int, items map[string]interface{}) {
-	var string_value string
-	var i int = 0
-
-	//append all items to list of SItems
-	for key, value := range items {
-		i++
-		switch value.(type) {
-		case string:
-			string_value = value.(string)
-		case int, int64:
-			string_value = strconv.Itoa(value.(int))
-		case float32:
-			string_value = strconv.FormatFloat(value.(float64), 'f', 0, 32)
-		case float64:
-			string_value = strconv.FormatFloat(value.(float64), 'f', 0, 64)
-		default:
-			log.Printf("WARNING: field #%d: expecting a number or string, but JSON element #%d is %s", id+1, i, value)
-			continue
+func (field *Field) UnmarshalKeyValueInterface(key string, value interface{}) {
+	field.Html = key
+	defer func() {
+		if err := recover(); err != nil {
+			if verbose {
+				log.Printf("Unsupported subfield: %s\n", err)
+			}
 		}
+	}()
 
-		sitem := &SItem{
-			Key:   key,
-			Value: string_value,
-		}
-
-		s.Items = append(s.Items, *sitem)
-	}
+	unmarshalJSONString(&field.Value, value)
 }
 
-type SItem struct {
-	Key   string
-	Value string
-}
+type ByFieldValue []Field
+
+func (f ByFieldValue) Len() int           { return len(f) }
+func (f ByFieldValue) Swap(i, j int)      { f[i], f[j] = f[j], f[i] }
+func (f ByFieldValue) Less(i, j int) bool { return f[i].Value < f[j].Value }
